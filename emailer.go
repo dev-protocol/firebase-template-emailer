@@ -81,21 +81,12 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
 
-	// os.Getenv("FIREBASE_PROJECT_ID")
-
 	// parse data from request
 	data := &SendEmailRequest{}
 	if err := render.Bind(r, data); err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
-
-	// var myEnv map[string]string
-	// myEnv, err = godotenv.Read()
-	// if err != nil {
-	// 	render.Render(w, r, ErrInvalidRequest(err))
-	// 	return
-	// }
 
 	config := &firebase.Config{
 		ProjectID: os.Getenv("FIREBASE_PROJECT_ID"),
@@ -190,16 +181,6 @@ func fixDir() {
 }
 
 func init() {
-	// err is pre-declared to avoid shadowing client.
-	// var err error
-
-	// // client is initialized with context.Background() because it should
-	// // persist between function invocations.
-	// client, err = pubsub.NewClient(context.Background(), projectID)
-	// if err != nil {
-	// 				log.Fatalf("pubsub.NewClient: %v", err)
-	// }
-
 	fixDir()
 
 	// register http function
