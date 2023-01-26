@@ -1,12 +1,14 @@
-package main
+package emailer
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
 	"log"
+	"os"
 
 	"net/http"
 	"net/mail"
@@ -15,11 +17,9 @@ import (
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/joho/godotenv"
 
+	"github.com/GoogleCloudPlatform/functions-framework-go/functions"
 	"github.com/sendgrid/sendgrid-go"
 	sgMail "github.com/sendgrid/sendgrid-go/helpers/mail"
 )
@@ -71,19 +71,15 @@ func ErrInvalidRequest(err error) render.Renderer {
 func newActionCodeSettings(redirectUrl string) *auth.ActionCodeSettings {
 	// [START init_action_code_settings]
 	actionCodeSettings := &auth.ActionCodeSettings{
-		URL:                   redirectUrl,
-		HandleCodeInApp:       true,
-		IOSBundleID:           "com.example.ios",
-		AndroidPackageName:    "com.example.android",
-		AndroidInstallApp:     true,
-		AndroidMinimumVersion: "12",
-		DynamicLinkDomain:     "coolapp.page.link",
+		URL: redirectUrl,
 	}
 	// [END init_action_code_settings]
 	return actionCodeSettings
 }
 
-func sendEmail(w http.ResponseWriter, r *http.Request) {
+func SendEmail(w http.ResponseWriter, r *http.Request) {
+
+	ctx := context.Background()
 
 	// parse data from request
 	data := &SendEmailRequest{}
@@ -92,41 +88,34 @@ func sendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var myEnv map[string]string
-	myEnv, err := godotenv.Read()
-	if err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
-		return
-	}
-
 	config := &firebase.Config{
-		ProjectID: myEnv["FIREBASE_PROJECT_ID"],
+		ProjectID: os.Getenv("FIREBASE_PROJECT_ID"),
 	}
 
 	// initialize firebase
-	app, err := firebase.NewApp(context.Background(), config)
+	app, err := firebase.NewApp(ctx, config)
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	// initialize firebase auth client
-	client, err := app.Auth(context.Background())
+	client, err := app.Auth(ctx)
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
 	// Ensure RedirectUrl is a valid URL
-	callbackUrl, err := url.ParseRequestURI(myEnv["FIREBASE_CALLBACK_URL"])
+
+	callbackUrl, err := url.ParseRequestURI(os.Getenv("FIREBASE_CALLBACK_URL"))
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
-		return
 	}
 
 	actionCodeSettings := newActionCodeSettings(callbackUrl.String())
 
-	link, err := client.EmailVerificationLinkWithSettings(context.Background(), *data.Email, actionCodeSettings)
+	link, err := client.EmailVerificationLinkWithSettings(ctx, *data.Email, actionCodeSettings)
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
@@ -152,32 +141,48 @@ func sendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fromEmail := myEnv["SENDGRID_FROM_EMAIL"]
+	fromEmail := os.Getenv("SENDGRID_FROM_EMAIL")
 	_, err = mail.ParseAddress(fromEmail)
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
 
-	from := sgMail.NewEmail(myEnv["SENDGRID_FROM_NAME"], fromEmail)
+	from := sgMail.NewEmail(os.Getenv("SENDGRID_FROM_NAME"), fromEmail)
 	to := sgMail.NewEmail(*data.Email, *data.Email)
 	plainTextContent := fmt.Sprintf("Welcome to Clubs! Follow the link to authenticate: %s.", link)
-	message := sgMail.NewSingleEmail(from, myEnv["SENDGRID_EMAIL_SUBJECT"], to, plainTextContent, templateInstance.String())
-	sgClient := sendgrid.NewSendClient(myEnv["SENDGRID_API_KEY"])
-	response, err := sgClient.Send(message)
+	message := sgMail.NewSingleEmail(from, os.Getenv("SENDGRID_EMAIL_SUBJECT"), to, plainTextContent, templateInstance.String())
+	sgClient := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
+	sendResponse, err := sgClient.Send(message)
 	if err != nil {
 		log.Println(err)
 	} else {
-		fmt.Println(response.StatusCode)
-		fmt.Println(response.Body)
-		fmt.Println(response.Headers)
+		fmt.Println(sendResponse.StatusCode)
+		fmt.Println(sendResponse.Body)
+		fmt.Println(sendResponse.Headers)
+	}
+
+	res, err := json.Marshal(sendResponse)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Write(res)
+}
+
+const gcloudFuncSourceDir = "serverless_function_source_code"
+
+func fixDir() {
+	fileInfo, err := os.Stat(gcloudFuncSourceDir)
+	if err == nil && fileInfo.IsDir() {
+		_ = os.Chdir(gcloudFuncSourceDir)
 	}
 }
 
-func main() {
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+func init() {
+	fixDir()
 
-	r.Post("/", sendEmail)
-	http.ListenAndServe(":3000", r)
+	// register http function
+	functions.HTTP("SendEmail", SendEmail)
 }

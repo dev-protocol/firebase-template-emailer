@@ -1,0 +1,12 @@
+# Custom Template Firebase Emailer
+
+## Local Setup
+
+Set gcloud up on your local device and login (`gcloud auth login`).
+Set the project id to your firebase instance (`gcloud config set project <PROJECT_ID>`).
+Make sure you have billing setup on Firebase.
+You will also need a SendGrid account set up.
+
+## Deployment
+
+`gcloud functions deploy SendEmail --trigger-http --runtime go119 --env-vars-file .env.yaml`
