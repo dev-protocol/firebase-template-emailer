@@ -26,8 +26,7 @@ import (
 
 // SendEmailRequest is the request payload for sending an email.
 type SendEmailRequest struct {
-	Email       *string `json:"email"`
-	RedirectUrl *string `json:"redirectUrl"`
+	Email *string `json:"email"`
 }
 
 func (emailRequest *SendEmailRequest) Bind(r *http.Request) error {
@@ -41,17 +40,6 @@ func (emailRequest *SendEmailRequest) Bind(r *http.Request) error {
 	_, err := mail.ParseAddress(*emailRequest.Email)
 	if err != nil {
 		return errors.New("invalid Email Address")
-	}
-
-	// Ensure RedirectUrl is present
-	if emailRequest.RedirectUrl == nil {
-		return errors.New("missing required Article fields")
-	}
-
-	// Ensure RedirectUrl is a valid URL
-	_, err = url.ParseRequestURI(*emailRequest.RedirectUrl)
-	if err != nil {
-		return errors.New("invalid RedirectUrl")
 	}
 
 	return nil
@@ -118,16 +106,25 @@ func sendEmail(w http.ResponseWriter, r *http.Request) {
 	// initialize firebase
 	app, err := firebase.NewApp(context.Background(), config)
 	if err != nil {
-		log.Fatalf("error initializing app: %v\n", err)
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
 	}
 
 	// initialize firebase auth client
 	client, err := app.Auth(context.Background())
 	if err != nil {
-		log.Fatalf("error initializing auth: %v\n", err)
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
 	}
 
-	actionCodeSettings := newActionCodeSettings(*data.RedirectUrl)
+	// Ensure RedirectUrl is a valid URL
+	callbackUrl, err := url.ParseRequestURI(myEnv["FIREBASE_CALLBACK_URL"])
+	if err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
+	}
+
+	actionCodeSettings := newActionCodeSettings(callbackUrl.String())
 
 	link, err := client.EmailVerificationLinkWithSettings(context.Background(), *data.Email, actionCodeSettings)
 	if err != nil {
@@ -178,8 +175,6 @@ func sendEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	fmt.Println("Hello, world.")
-
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
