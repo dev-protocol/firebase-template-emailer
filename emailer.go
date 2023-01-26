@@ -1,4 +1,4 @@
-package main
+package emailer
 
 import (
 	"bytes"
@@ -174,7 +174,7 @@ func sendEmail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func main() {
+func init() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
