@@ -352,7 +352,12 @@
                     <tr>
                       <td>
                         <p>Hi there,</p>
-                        <p>Welcome to Clubs, the DAO builder for the creator economy. Before you get started, we need to simply verify your account.</p>
+												{{if .IsSignIn}}
+													<p>Welcome back to Clubs, the DAO builder for the creator economy.</p>
+												{{else}}
+													<p>Welcome to Clubs, the DAO builder for the creator economy. Before you get started, we need to simply verify your account.</p>
+												{{end}}
+                        
                         <table role="presentation" border="0" cellpadding="0" cellspacing="0" class="btn btn-primary">
                           <tbody>
                             <tr>
@@ -360,7 +365,15 @@
                                 <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                                   <tbody>
                                     <tr>
-                                      <td> <a href="{{.EmailVerificationLink}}" target="_blank">Verify Account</a> </td>
+                                      <td> 
+																				<a href="{{.EmailVerificationLink}}" target="_blank">
+																					{{if .IsSignIn}}
+																					Sign In
+																					{{else}}
+																					Verify Account
+																					{{end}}
+																				</a> 
+																			</td>
                                     </tr>
                                   </tbody>
                                 </table>

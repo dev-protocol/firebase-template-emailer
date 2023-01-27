@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log"
 	"os"
+	"strconv"
 
 	"net/http"
 	"net/mail"
@@ -81,6 +82,10 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
 
+	// we don't need to check the err here
+	// will default to false if string is invalid bool
+	isSignIn, _ := strconv.ParseBool(r.URL.Query().Get("isSignIn"))
+
 	// parse data from request
 	data := &SendEmailRequest{}
 	if err := render.Bind(r, data); err != nil {
@@ -129,8 +134,10 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	templateVars := struct {
 		EmailVerificationLink string
+		IsSignIn              bool
 	}{
 		EmailVerificationLink: link,
+		IsSignIn:              isSignIn,
 	}
 
 	// write templateVars to template instance
