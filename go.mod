@@ -5,7 +5,6 @@ go 1.19
 require (
 	firebase.google.com/go/v4 v4.10.0
 	github.com/go-chi/render v1.0.2
-	github.com/joho/godotenv v1.4.0
 	github.com/sendgrid/sendgrid-go v3.12.0+incompatible
 )
 

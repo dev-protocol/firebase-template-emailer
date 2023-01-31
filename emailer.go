@@ -9,7 +9,6 @@ import (
 	"html/template"
 	"log"
 	"os"
-	"strconv"
 
 	"net/http"
 	"net/mail"
@@ -28,6 +27,10 @@ import (
 // SendEmailRequest is the request payload for sending an email.
 type SendEmailRequest struct {
 	Email *string `json:"email"`
+
+	// this should be like "/authentication" or "/authentication/<site-name>"
+	// since the base url is set in .env
+	SubDomain *string `json:"siteName,omitempty"`
 }
 
 func (emailRequest *SendEmailRequest) Bind(r *http.Request) error {
@@ -69,22 +72,9 @@ func ErrInvalidRequest(err error) render.Renderer {
 	}
 }
 
-func newActionCodeSettings(redirectUrl string) *auth.ActionCodeSettings {
-	// [START init_action_code_settings]
-	actionCodeSettings := &auth.ActionCodeSettings{
-		URL: redirectUrl,
-	}
-	// [END init_action_code_settings]
-	return actionCodeSettings
-}
-
 func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	ctx := context.Background()
-
-	// we don't need to check the err here
-	// will default to false if string is invalid bool
-	isSignIn, _ := strconv.ParseBool(r.URL.Query().Get("isSignIn"))
 
 	// parse data from request
 	data := &SendEmailRequest{}
@@ -113,11 +103,39 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	// Ensure RedirectUrl is a valid URL
 
-	callbackUrl, err := url.ParseRequestURI(os.Getenv("FIREBASE_CALLBACK_URL"))
+	callbackUrlBase, err := url.ParseRequestURI(os.Getenv("FIREBASE_CALLBACK_URL"))
 	if err != nil {
 		render.Render(w, r, ErrInvalidRequest(err))
 	}
 
+	var callbackUrl *url.URL
+	var emailTemplate *template.Template
+
+	/**
+	 * Subdomain exists means verify
+	 */
+	if data.SubDomain != nil {
+		siteName := *data.SubDomain
+		callbackUrl = callbackUrlBase.JoinPath(siteName)
+		emailTemplate, err = template.ParseFiles("verify_template.html")
+		if err != nil {
+			render.Render(w, r, ErrInvalidRequest(err))
+			return
+		}
+
+		/**
+		 * Subdomain does not exist means sign in
+		 */
+	} else {
+		callbackUrl = callbackUrlBase
+		emailTemplate, err = template.ParseFiles("signin_template.html")
+		if err != nil {
+			render.Render(w, r, ErrInvalidRequest(err))
+			return
+		}
+	}
+
+	// callbackUrl := callbackUrlBase.JoinPath(*data.RedirectPath)
 	actionCodeSettings := newActionCodeSettings(callbackUrl.String())
 
 	link, err := client.EmailVerificationLinkWithSettings(ctx, *data.Email, actionCodeSettings)
@@ -126,18 +144,10 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	emailTemplate, err := template.ParseFiles("email_template.html")
-	if err != nil {
-		render.Render(w, r, ErrInvalidRequest(err))
-		return
-	}
-
 	templateVars := struct {
 		EmailVerificationLink string
-		IsSignIn              bool
 	}{
 		EmailVerificationLink: link,
-		IsSignIn:              isSignIn,
 	}
 
 	// write templateVars to template instance
@@ -178,18 +188,15 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	w.Write(res)
 }
 
-const gcloudFuncSourceDir = "serverless_function_source_code"
-
-func fixDir() {
-	fileInfo, err := os.Stat(gcloudFuncSourceDir)
-	if err == nil && fileInfo.IsDir() {
-		_ = os.Chdir(gcloudFuncSourceDir)
+func newActionCodeSettings(redirectUrl string) *auth.ActionCodeSettings {
+	actionCodeSettings := &auth.ActionCodeSettings{
+		URL: redirectUrl,
 	}
+	return actionCodeSettings
 }
 
 func init() {
 	fixDir()
-
 	// register http function
 	functions.HTTP("SendEmail", SendEmail)
 }
