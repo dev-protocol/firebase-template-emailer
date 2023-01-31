@@ -30,7 +30,7 @@ type SendEmailRequest struct {
 
 	// this should be like "/authentication" or "/authentication/<site-name>"
 	// since the base url is set in .env
-	SubDomain *string `json:"siteName,omitempty"`
+	SubDomain *string `json:"subDomain,omitempty"`
 }
 
 func (emailRequest *SendEmailRequest) Bind(r *http.Request) error {
@@ -109,7 +109,7 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var callbackUrl *url.URL
-	var emailTemplate *template.Template
+	var isSignIn bool
 
 	/**
 	 * Subdomain exists means verify
@@ -117,22 +117,20 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	if data.SubDomain != nil {
 		siteName := *data.SubDomain
 		callbackUrl = callbackUrlBase.JoinPath(siteName)
-		emailTemplate, err = template.ParseFiles("verify_template.html")
-		if err != nil {
-			render.Render(w, r, ErrInvalidRequest(err))
-			return
-		}
+		isSignIn = false
 
 		/**
 		 * Subdomain does not exist means sign in
 		 */
 	} else {
 		callbackUrl = callbackUrlBase
-		emailTemplate, err = template.ParseFiles("signin_template.html")
-		if err != nil {
-			render.Render(w, r, ErrInvalidRequest(err))
-			return
-		}
+		isSignIn = true
+	}
+
+	emailTemplate, err := template.ParseFiles("email_template.html")
+	if err != nil {
+		render.Render(w, r, ErrInvalidRequest(err))
+		return
 	}
 
 	// callbackUrl := callbackUrlBase.JoinPath(*data.RedirectPath)
@@ -146,8 +144,10 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	templateVars := struct {
 		EmailVerificationLink string
+		IsSignIn              bool
 	}{
 		EmailVerificationLink: link,
+		IsSignIn:              isSignIn,
 	}
 
 	// write templateVars to template instance
