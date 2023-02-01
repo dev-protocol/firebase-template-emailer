@@ -74,6 +74,21 @@ func ErrInvalidRequest(err error) render.Renderer {
 
 func SendEmail(w http.ResponseWriter, r *http.Request) {
 
+	// Enable CORS
+	// Set CORS headers for the preflight request
+	// This is so we don't have errors testing locally
+	// We should make this dynamic and launch prod and dev versions
+	if r.Method == http.MethodOptions {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Max-Age", "3600")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// Set CORS headers for the main request.
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	ctx := context.Background()
 
 	// parse data from request
