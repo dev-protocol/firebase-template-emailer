@@ -105,6 +105,7 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	// initialize firebase
 	app, err := firebase.NewApp(ctx, config)
 	if err != nil {
+		log.Println("error creating new firebase app")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -112,6 +113,7 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	// initialize firebase auth client
 	client, err := app.Auth(ctx)
 	if err != nil {
+		log.Println("error creating new firebase auth client")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -151,8 +153,9 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	// callbackUrl := callbackUrlBase.JoinPath(*data.RedirectPath)
 	actionCodeSettings := newActionCodeSettings(callbackUrl.String())
 
-	link, err := client.EmailVerificationLinkWithSettings(ctx, *data.Email, actionCodeSettings)
+	link, err := client.EmailSignInLink(ctx, *data.Email, actionCodeSettings)
 	if err != nil {
+		log.Println("error creating new firebase link")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -176,6 +179,7 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	fromEmail := os.Getenv("SENDGRID_FROM_EMAIL")
 	_, err = mail.ParseAddress(fromEmail)
 	if err != nil {
+		log.Println("error parsing address")
 		render.Render(w, r, ErrInvalidRequest(err))
 		return
 	}
@@ -187,6 +191,7 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 	sgClient := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
 	sendResponse, err := sgClient.Send(message)
 	if err != nil {
+		log.Println("error in sendResponse!!!")
 		log.Println(err)
 	} else {
 		fmt.Println(sendResponse.StatusCode)
@@ -196,6 +201,7 @@ func SendEmail(w http.ResponseWriter, r *http.Request) {
 
 	res, err := json.Marshal(sendResponse)
 	if err != nil {
+		log.Println("error in json marshal")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
